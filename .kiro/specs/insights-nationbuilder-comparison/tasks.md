@@ -41,10 +41,28 @@ with at least one field mismatch. (Counts drift run-to-run as live data changes.
   (adapted from ZipStateFed, incl. shared-app / separate-refresh-token design),
   and this spec. _Requirements: all_
 
-## Phase 3 — Not yet started
+## Phase 3 — AWS Lambda + S3 + email (ToDoList #2)
 
-- [ ] 11. AWS Lambda + S3 + email for this comparison flow (ToDoList #2) —
-  Secrets Manager for the OAuth creds, rotate refresh token back into the secret.
+- [x] 11. Lambda deployment of the comparison flow.
+  - [x] 11.1 Refactor the three scripts to expose in-process functions
+    (`pull_insights()`, `pull_full(concurrency, on_refresh)`,
+    `build_comparison(insights_df, nationbuilder_df)`, `write_comparison_files`).
+  - [x] 11.2 `lambda_pipeline.py` — `run()` + `handler()` chaining both pulls +
+    compare in one process; S3 upload (date-stamped) + SES email of the
+    mismatches report; status file + JSON result.
+  - [x] 11.3 Credentials from a single combined Secrets Manager secret
+    (`nb/insightslag/prod`: `NATIONBUILDER_*` + `NB_INSIGHTS_*`); rotate the V2
+    refresh token back into it each run.
+  - [x] 11.4 `build_lambda_zip.py` (bundles `tableau-api-lib` + non-pandas deps
+    as Linux wheels; pandas/numpy from the AWS-managed layer).
+  - [x] 11.5 `aws/` IAM + env templates, `Dockerfile`/`.dockerignore` fallback,
+    `.env.example` AWS section, `DEPLOY.md`.
+  - [x] 11.6 Verified `run()` locally (S3/SES unset -> local files only).
+  - [ ] 11.7 Create the live AWS resources (bucket, secret, role, function,
+    schedule) per DEPLOY.md — user step, not yet done.
+
+## Phase 4 — Not yet started
+
 - [ ] 12. GitHub Actions + Serverless Framework v4 deployment (ToDoList #3).
 - [ ] 13. Retire the legacy V1 `nationbuilder/` package and
   `pull_zip_state_federal.py` once their deployment is migrated.

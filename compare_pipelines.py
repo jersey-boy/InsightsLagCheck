@@ -72,15 +72,25 @@ def _norm_zip(value: object) -> str:
     return digits[:5].zfill(5) if digits else ""
 
 
-def _read_side(path: str, prefix: str) -> pd.DataFrame:
-    """Read a pull CSV, key on signup_id, dedupe, and prefix the compared cols."""
-    df = pd.read_csv(path, dtype=str).fillna("")
+def _prepare_side(df: pd.DataFrame, prefix: str) -> pd.DataFrame:
+    """Key a pull DataFrame on signup_id, dedupe, and prefix the compared cols.
+
+    Accepts any DataFrame with a `signup_id` column plus the compared fields
+    (works for both the CSV-read path and in-memory frames from the pulls).
+    """
+    df = df.copy()
     df["signup_id"] = pd.to_numeric(df["signup_id"], errors="coerce").astype("Int64")
     df = df.dropna(subset=["signup_id"]).drop_duplicates(subset=["signup_id"])
     keep = ["signup_id"] + [c for c in COMPARE_FIELDS if c in df.columns]
     df = df[keep]
     rename = {c: f"{prefix}_{c}" for c in COMPARE_FIELDS if c in df.columns}
     return df.rename(columns=rename)
+
+
+def _read_side(path: str, prefix: str) -> pd.DataFrame:
+    """Read a pull CSV (all-string) and prepare it for the join."""
+    df = pd.read_csv(path, dtype=str).fillna("")
+    return _prepare_side(df, prefix)
 
 
 def _field_flag(field: str, ins: str, nb: str) -> str:
@@ -112,10 +122,26 @@ def _write_xlsx_zip_as_text(frame: pd.DataFrame, path: str) -> None:
                 ws.cell(row=row, column=col_idx).number_format = "@"
 
 
-def build_comparison() -> pd.DataFrame:
-    """Inner-join the two pulls on signup_id and compute per-field match flags."""
-    insights = _read_side(_out(INSIGHTS_CSV), "insights")
-    nb = _read_side(_out(NATIONBUILDER_CSV), "nb")
+def build_comparison(
+    insights_df: pd.DataFrame | None = None,
+    nationbuilder_df: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Inner-join the two pulls on signup_id and compute per-field match flags.
+
+    If `insights_df` / `nationbuilder_df` are given, they are used directly
+    (the in-process path used by the Lambda orchestrator). Otherwise the two
+    CSVs in OUTPUT_DIR are read (the standalone CLI path).
+    """
+    insights = (
+        _prepare_side(insights_df, "insights")
+        if insights_df is not None
+        else _read_side(_out(INSIGHTS_CSV), "insights")
+    )
+    nb = (
+        _prepare_side(nationbuilder_df, "nb")
+        if nationbuilder_df is not None
+        else _read_side(_out(NATIONBUILDER_CSV), "nb")
+    )
 
     merged = insights.merge(nb, on="signup_id", how="inner")
 
@@ -137,16 +163,36 @@ def build_comparison() -> pd.DataFrame:
     return out.sort_values("signup_id").reset_index(drop=True)
 
 
+def mismatches_only(comparison: pd.DataFrame) -> pd.DataFrame:
+    """Return just the rows where at least one field mismatched."""
+    match_cols = [f"{f}_match" for f in COMPARE_FIELDS]
+    return comparison[(comparison[match_cols] == "MISMATCH").any(axis=1)]
+
+
+def write_comparison_files(comparison: pd.DataFrame) -> list[str]:
+    """Write the full comparison and the mismatches subset (CSV + XLSX).
+
+    Returns the list of written paths. Used by both the CLI and the Lambda
+    orchestrator so the output format stays identical.
+    """
+    mismatches = mismatches_only(comparison)
+    paths = [
+        _out(COMPARISON_CSV),
+        _out(COMPARISON_XLSX),
+        _out(MISMATCHES_CSV),
+        _out(MISMATCHES_XLSX),
+    ]
+    comparison.to_csv(paths[0], index=False)
+    _write_xlsx_zip_as_text(comparison, paths[1])
+    mismatches.to_csv(paths[2], index=False)
+    _write_xlsx_zip_as_text(mismatches, paths[3])
+    return paths
+
+
 def main() -> None:
     comparison = build_comparison()
-
-    match_cols = [f"{f}_match" for f in COMPARE_FIELDS]
-    mismatches = comparison[(comparison[match_cols] == "MISMATCH").any(axis=1)]
-
-    comparison.to_csv(_out(COMPARISON_CSV), index=False)
-    _write_xlsx_zip_as_text(comparison, _out(COMPARISON_XLSX))
-    mismatches.to_csv(_out(MISMATCHES_CSV), index=False)
-    _write_xlsx_zip_as_text(mismatches, _out(MISMATCHES_XLSX))
+    mismatches = mismatches_only(comparison)
+    write_comparison_files(comparison)
 
     total = len(comparison)
     print(f"Compared {total:,} signup_ids present in both pipelines.")

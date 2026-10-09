@@ -60,15 +60,24 @@ def _to_frame(rows: list[dict]) -> pd.DataFrame:
     return df.sort_values("signup_id").reset_index(drop=True)
 
 
-def pull_full() -> pd.DataFrame:
-    """Pull and project every signup from V2 (parallel). Returns a DataFrame."""
-    pages_seen = {"n": 0}
+def pull_full(concurrency: int | None = None, on_refresh=None) -> pd.DataFrame:
+    """Pull and project every signup from V2 (parallel). Returns a DataFrame.
+
+    Args:
+        concurrency: parallel page-fetch workers (defaults to NB_CONCURRENCY).
+        on_refresh: callback passed to the V2 client to persist the rotated
+            refresh token (e.g. a Secrets Manager writer in Lambda). When None,
+            the client's default local-.env writer is used.
+    """
 
     def _progress(done: int, _total: int) -> None:
-        pages_seen["n"] = done
         print(f"  ...{done:,} pages attempted", flush=True)
 
-    rows = extract_all_signups(concurrency=NB_CONCURRENCY, progress=_progress)
+    rows = extract_all_signups(
+        concurrency=concurrency or NB_CONCURRENCY,
+        progress=_progress,
+        on_refresh=on_refresh,
+    )
     return _to_frame(rows)
 
 

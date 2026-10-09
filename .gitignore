@@ -47,6 +47,7 @@ Dennis.md
 # Recipient list contains real email addresses (PII); the live copy lives in S3.
 recipients.txt
 
-# Legacy ZipStateFed AWS config (account id, bucket, secret id); not reused here
-# yet. Will be revisited when this project's own Lambda deploy is built (ToDo #2).
-aws/
+# NOTE: the aws/ IAM + env templates (trust/permissions/scheduler/lambda-env)
+# ARE committed — they use ACCOUNT_ID / YOUR_BUCKET placeholders, no secrets.
+# Only aws/response.json (Lambda invoke output with presigned URLs) is ignored,
+# via its own rule above.

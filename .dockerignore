@@ -16,7 +16,12 @@ ZIP_Locale_Detail.xlsx
 # Generated output / run artifacts (contain member PII)
 *.csv
 *.xlsx
-pull_zip_state_federal.status.txt
+*.log
+*.status.txt
+recipients.txt
+
+# Legacy ZipStateFed AWS config (not used by this image)
+aws/
 
 # Version control & IDE
 .git/
@@ -28,7 +33,11 @@ pull_zip_state_federal.status.txt
 *.md
 .kiro/
 
+# Local working notes / chat transcripts
+Chat*.docx
+Chat*.md
+Dennis.md
+
 # Python caches
 __pycache__/
 *.py[cod]
-Chat01.docx

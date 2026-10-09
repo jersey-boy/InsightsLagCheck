@@ -1,0 +1,15 @@
+{
+  "Variables": {
+    "OUTPUT_DIR": "/tmp",
+    "S3_BUCKET": "YOUR_BUCKET",
+    "S3_PREFIX": "insights-lag-reports/",
+    "S3_REGION": "eu-west-2",
+    "SES_SENDER": "insights-reports@lategothikdata.com",
+    "SES_REGION": "eu-west-2",
+    "RECIPIENTS_S3_URI": "s3://YOUR_BUCKET/config/recipients.txt",
+    "NATIONBUILDER_SECRET_ID": "nb/insightslag/prod",
+    "NATIONBUILDER_SECRET_REGION": "eu-west-2",
+    "NB_INSIGHTS_SECRET_ID": "nb/insightslag/prod",
+    "NB_INSIGHTS_SECRET_REGION": "eu-west-2"
+  }
+}

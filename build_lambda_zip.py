@@ -1,14 +1,20 @@
 """
-Build a Lambda deployment zip for the "zip + AWS-managed pandas layer" path.
+Build a Lambda deployment zip for the Insights-vs-NationBuilder comparison.
 
-This produces `lambda_deploy.zip` containing:
-  * the application source (nb_insights.py, pull_zip_state_federal.py)
+Produces `lambda_deploy.zip` containing:
+  * the application source (lambda_pipeline.py + the three pull/compare scripts
+    + nb_insights.py) and the `nationbuilder_v2` package,
   * the dependencies that are NOT in the AWS-managed pandas layer, installed as
     Linux (manylinux) wheels so they run on the Lambda runtime.
 
 pandas and numpy are intentionally EXCLUDED — they come from the AWS-managed
-layer `AWSSDKPandas-Python312` attached to the function (see DEPLOY.md). boto3
-is also excluded because it is already in the Lambda runtime.
+layer `AWSSDKPandas-Python312` attached to the function (see DEPLOY.md). boto3 is
+also excluded because it is already in the Lambda runtime.
+
+IMPORTANT — this project pulls from NationBuilder Insights via Tableau, so unlike
+the V2-only ZipStateFed build it must bundle `tableau-api-lib` and its (non-pandas)
+dependency chain: requests, requests-toolbelt, bleach, typeguard, packaging, etc.
+Those are listed in DEPENDENCIES below; pip resolves their transitive deps.
 
 Why a script (not `pip install` into a folder directly): on Windows, a plain
 `pip install` grabs Windows wheels that will not run on Lambda. We force Linux
@@ -31,28 +37,45 @@ BUILD_DIR = ROOT / "build" / "package"
 ZIP_PATH = ROOT / "lambda_deploy.zip"
 
 # Application source files to include at the zip root.
-SOURCE_FILES = ["nb_insights.py", "pull_zip_state_federal.py"]
+SOURCE_FILES = [
+    "lambda_pipeline.py",
+    "pull_insights.py",
+    "pull_nationbuilder.py",
+    "compare_pipelines.py",
+    "nb_insights.py",
+]
 
 # Application packages (directories) to include at the zip root.
-SOURCE_PACKAGES = ["nationbuilder"]
+SOURCE_PACKAGES = ["nationbuilder_v2"]
 
-# Dependencies to bundle. pandas/numpy (managed layer) and boto3 (runtime) are
-# deliberately omitted. These are the pins from requirements.txt minus those.
+# Dependencies to bundle as Linux wheels. pandas/numpy (managed layer) and boto3
+# (runtime) are deliberately omitted. `tableau-api-lib` drags in requests,
+# requests-toolbelt, bleach, typeguard, and packaging — pip pulls those
+# transitively, but we list the direct ones explicitly for clarity.
 DEPENDENCIES = [
     "tableau-api-lib==0.1.45",
     "openpyxl==3.1.5",
     "python-dotenv==1.0.1",
     "httpx==0.27.2",
+    "requests>2",
 ]
 
-# Packages provided by the environment, so they must NOT be in the zip:
-#   pandas, numpy  -> AWS-managed pandas layer (AWSSDKPandas-Python312)
-#   boto3, botocore, s3transfer, jmespath, dateutil, six, urllib3 -> also in
-#     that layer / the Lambda runtime.
-# tableau-api-lib lists pandas as a dependency, so pip installs it transitively;
-# we prune these top-level dirs after install to avoid shipping (and shadowing)
-# the layer's copies. Pruning by import-name prefix keeps it simple and safe.
-PROVIDED_BY_LAYER = ["pandas", "numpy"]
+# Packages to prune after install because they are provided by the environment:
+#   pandas / numpy -> AWS-managed pandas layer (large; always present there).
+#   boto3 / botocore / s3transfer / jmespath -> Lambda runtime + pandas layer.
+# NOTE: we deliberately KEEP pandas' small runtime deps (pytz, tzdata,
+# python-dateutil, six) in the zip. They are provided by the pandas layer today,
+# but they are tiny (~1 MB total) and bundling them guarantees pandas imports
+# even if a future layer build omits one — a cheap insurance against a hard-to-
+# diagnose cold-start ImportError.
+PROVIDED_BY_LAYER = [
+    "pandas",
+    "numpy",
+    "boto3",
+    "botocore",
+    "s3transfer",
+    "jmespath",
+]
 
 # Lambda x86_64 / Python 3.12 wheel target.
 PIP_PLATFORM = "manylinux2014_x86_64"
@@ -84,17 +107,11 @@ def pip_install_linux_wheels() -> None:
 
 
 def prune_layer_packages() -> None:
-    """Delete packages provided by the AWS-managed layer from BUILD_DIR.
-
-    tableau-api-lib depends on pandas (which pulls numpy), so pip installs them
-    transitively. Shipping them would bloat the zip and shadow the layer, so we
-    remove their package dirs and *.dist-info / *.libs folders here.
-    """
+    """Delete packages provided by the AWS-managed layer / runtime from BUILD_DIR."""
     removed = []
     for name in PROVIDED_BY_LAYER:
         for entry in BUILD_DIR.iterdir():
             base = entry.name.lower()
-            # e.g. "pandas", "pandas-2.3.2.dist-info", "numpy.libs"
             if base == name or base.startswith(f"{name}-") or base.startswith(
                 f"{name}."
             ):
@@ -107,7 +124,7 @@ def prune_layer_packages() -> None:
 
 
 def build_zip() -> None:
-    """Zip the installed dependencies plus the application source files."""
+    """Zip the installed dependencies plus the application source."""
     with zipfile.ZipFile(ZIP_PATH, "w", zipfile.ZIP_DEFLATED) as zf:
         # Dependencies (contents of BUILD_DIR at the zip root).
         for path in BUILD_DIR.rglob("*"):

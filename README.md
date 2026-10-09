@@ -232,12 +232,30 @@ Full requirements, design, and tasks live in `.kiro/specs/`:
 
 ## Running as an AWS Lambda
 
-`pull_zip_state_federal.handler` is the Lambda entry point. It writes outputs to
-`/tmp`, uploads them to S3, and returns presigned download URLs. Build the
-deployment zip with `python build_lambda_zip.py` (bundles the non-pandas deps as
-Linux wheels; pandas/numpy come from the AWS-managed pandas layer). See
-**[`DEPLOY.md`](DEPLOY.md)** for the full step-by-step (IAM, Secrets Manager,
+The comparison pipeline runs unattended as an AWS Lambda. `lambda_pipeline.handler`
+is the entry point: it runs Pull A (Insights) and Pull B (NationBuilder V2)
+in-process, compares them, writes the reports to `/tmp`, uploads them to S3
+(date-stamped), and emails the mismatches report (plus the full comparison CSV)
+as attachments via SES.
+
+- **Credentials** come from a single AWS Secrets Manager secret
+  (`nb/insightslag/prod`) holding both the `NATIONBUILDER_*` (V2 OAuth) and
+  `NB_INSIGHTS_*` (Tableau) keys. The function rotates the V2 refresh token back
+  into that secret after each run.
+- **Build** the deployment zip with `python build_lambda_zip.py` (bundles the
+  non-pandas deps — including `tableau-api-lib` — as Linux wheels; pandas/numpy
+  come from the AWS-managed pandas layer).
+- **Own infrastructure**: this project uses its own S3 bucket and secret,
+  separate from ZipStateFed; the SES sender and recipient list are shared.
+- **Sizing**: 3008 MB memory / 900 s timeout (two full ~180k-row pulls are held
+  in memory at once).
+
+See **[`DEPLOY.md`](DEPLOY.md)** for the full step-by-step (bucket, secret, IAM,
 layer ARN, scheduling); a container-image path is included there as a fallback.
+
+> The legacy `pull_zip_state_federal.py` validator has its own, separate Lambda
+> handler (`pull_zip_state_federal.handler`); it is unrelated to the comparison
+> Lambda above and will be retired when the legacy validator is migrated.
 
 ## Notes
 
