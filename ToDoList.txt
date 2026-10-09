@@ -1,0 +1,4 @@
+
+1.Convert to NationBuilder API v2 - use ZipStateFed kiro project as model
+2.convert to AWS Lambda with S3 bucket and email notification - use ZipStateFed kiro project as model
+3. Modify deployment to use Github actions and serverless framework v4

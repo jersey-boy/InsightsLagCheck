@@ -1,0 +1,50 @@
+# Tasks — Insights vs NationBuilder Comparison
+
+Implementation history. Checked items are built and verified against the live
+`democratsabroad` Insights site and NationBuilder V2 API.
+
+Latest full run (V2): ~179,701 `signup_id`s present in both pipelines; 9 rows
+with at least one field mismatch. (Counts drift run-to-run as live data changes.)
+
+---
+
+## Phase 1 — Two full pulls + single-stage compare (V1, superseded)
+
+- [x] 1. `pull_insights.py` — full Insights view → `insights_data.csv`
+  (178k rows, no filter). _Requirements: 1_
+- [x] 2. V1 NationBuilder pulls — a serial `/people` bulk index pull plus a
+  resumable per-record detail pull.
+  - _Why superseded:_ the V1 index lacked `registered_address` and paginated
+    serially (~38 min), forcing a two-stage design.
+- [x] 3. `compare_pipelines.py` (two-stage) — bulk `federal_district` check then
+  per-record detail resolution for the non-matches.
+
+## Phase 2 — Convert NationBuilder side to V2 / OAuth 2.0
+
+- [x] 4. Vendor the `nationbuilder_v2/` package from ZipStateFed
+  (`client.py`, `extract.py`, `exceptions.py`, `__init__.py`); trim `extract.py`
+  to no filter / no custom fields. _Requirements: 2_
+- [x] 5. Add V2 OAuth env vars to `.env` / `.env.example`
+  (`NATIONBUILDER_CLIENT_ID/SECRET/REDIRECT_URI/REFRESH_TOKEN`). Reuse the
+  ZipStateFed OAuth app (shared client id/secret). _Requirements: 2.1, 4.3_
+- [x] 6. One-time OAuth authorize handshake to mint a **dedicated** refresh
+  token for this project; persisted to `.env`. _Requirements: 2.3, 4.3_
+- [x] 7. Rewrite `pull_nationbuilder.py` as a single parallel V2 pull →
+  `nationbuilder_data.csv` (188,998 signups; ~minutes). `--max-pages N` for a
+  serial sample. _Requirements: 2_
+- [x] 8. Simplify `compare_pipelines.py` to a single-stage inner join of the two
+  full CSVs; per-field `MATCH`/`MISMATCH`/blank + `all_match`; write
+  `comparison*.csv/.xlsx`. Retire `pull_nationbuilder_bulk.py`. _Requirements: 3_
+- [x] 9. End-to-end verify on live data (179,701 shared ids; 9 mismatches, which
+  include state/zip drift a district-only check would miss). _Requirements: 3_
+- [x] 10. Documentation — README (new V2 flow + legacy note), `V2_OAUTH_SETUP.md`
+  (adapted from ZipStateFed, incl. shared-app / separate-refresh-token design),
+  and this spec. _Requirements: all_
+
+## Phase 3 — Not yet started
+
+- [ ] 11. AWS Lambda + S3 + email for this comparison flow (ToDoList #2) —
+  Secrets Manager for the OAuth creds, rotate refresh token back into the secret.
+- [ ] 12. GitHub Actions + Serverless Framework v4 deployment (ToDoList #3).
+- [ ] 13. Retire the legacy V1 `nationbuilder/` package and
+  `pull_zip_state_federal.py` once their deployment is migrated.
