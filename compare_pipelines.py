@@ -57,11 +57,18 @@ def _out(filename: str) -> str:
     return os.path.join(OUTPUT_DIR, filename)
 
 
+# Tableau returns "*" for a cell when the field resolves to more than one value
+# at the view's aggregation grain (i.e. it is NOT a usable single value). Treat
+# it as blank/not-comparable so it never counts as a real value or a mismatch.
+TABLEAU_NOT_A_VALUE = {"", "*"}
+
+
 def _norm(value: object) -> str:
-    """Upper/stripped string for comparison."""
+    """Upper/stripped string for comparison; Tableau '*' becomes '' (no value)."""
     if value is None:
         return ""
-    return str(value).strip().upper()
+    s = str(value).strip().upper()
+    return "" if s in TABLEAU_NOT_A_VALUE else s
 
 
 def _norm_zip(value: object) -> str:

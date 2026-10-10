@@ -244,6 +244,42 @@ def _email_body(summary: dict, attached: list[str], skipped: list[str]) -> str:
     return "\n".join(lines)
 
 
+def notify_skip_by_email() -> list[str]:
+    """Email a short 'run skipped — Insights returned no data' notice via SES.
+
+    Used when Pull A comes back empty so the skipped run is an actionable alert
+    rather than a silent no-op. No-op (returns []) when SES_SENDER is unset or
+    no recipients are configured.
+    """
+    if not SES_SENDER:
+        return []
+    recipients = load_recipients()
+    if not recipients:
+        return []
+
+    import boto3
+
+    body = (
+        "The Insights vs NationBuilder comparison run was SKIPPED.\n\n"
+        "The NationBuilder Insights view returned 0 rows, so there was nothing "
+        "to compare and no report was produced. This usually means the Insights "
+        "workbook behind the view is mid-rebuild, empty, or has been retired on "
+        "the Insights side.\n\n"
+        "No action is needed if an Insights refresh is in progress; the next "
+        "scheduled run will pick the data up automatically once it returns. If "
+        "the view has moved, the VIEW_ID in pull_insights.py needs updating.\n"
+    )
+    boto3.client("ses", region_name=SES_REGION or None).send_email(
+        Source=SES_SENDER,
+        Destination={"ToAddresses": recipients},
+        Message={
+            "Subject": {"Data": f"{EMAIL_SUBJECT} — SKIPPED (no Insights data)"},
+            "Body": {"Text": {"Data": body}},
+        },
+    )
+    return recipients
+
+
 def notify_by_email(files: list[str], summary: dict) -> list[str]:
     """Email the comparison reports as attachments via SES. Returns recipients.
 
@@ -309,6 +345,30 @@ def run() -> dict:
         lines.append("Pull A: NationBuilder Insights view ...")
         insights_df = pull_insights.pull_insights()
         lines.append(f"  Insights signups: {len(insights_df):,}")
+
+        # Guard: the Insights view sometimes returns zero rows (e.g. the
+        # underlying workbook is mid-rebuild or has been emptied/retired on the
+        # Insights side). Comparing against an empty Insights pull is meaningless
+        # and would otherwise blow up downstream, so stop here, email a short
+        # heads-up, and return a distinct SKIPPED status (not a silent failure).
+        if len(insights_df) == 0:
+            lines.append("")
+            lines.append(
+                "Insights view returned 0 rows — skipping the comparison. "
+                "The Insights workbook may be mid-rebuild or empty."
+            )
+            result.update(status="SKIPPED", compared=0, mismatches=0, files=[])
+            if SES_SENDER:
+                emailed = notify_skip_by_email()
+                result["emailed_to"] = emailed
+                lines.append(
+                    f"Emailed skip notice to: {', '.join(emailed)}"
+                    if emailed else "Skip-notice email skipped (no recipients)."
+                )
+            lines.append("STATUS: SKIPPED")
+            _write_status(lines)
+            print("\n".join(lines))
+            return result
 
         # 2. Pull B — NationBuilder V2 (parallel; rotate refresh token on finish).
         lines.append("Pull B: NationBuilder V2 API ...")
@@ -387,7 +447,9 @@ def main() -> None:
 def handler(event, context):  # noqa: ANN001 - Lambda signature
     """AWS Lambda entry point. Returns a JSON-serializable run summary."""
     result = run()
-    status_code = 200 if result.get("status") == "OK" else 500
+    # OK and SKIPPED are both clean, expected outcomes (200); only a real
+    # exception (ERROR) is a 500.
+    status_code = 200 if result.get("status") in ("OK", "SKIPPED") else 500
     return {"statusCode": status_code, "result": result}
 
 

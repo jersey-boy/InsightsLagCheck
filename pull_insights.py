@@ -21,8 +21,11 @@ from tableau_api_lib.utils.querying import get_view_data_dataframe
 
 from nb_insights import insights_connection
 
-# The "Zip State Federal District" view (from reports_views.csv).
-VIEW_ID = "c7f541b2-87db-4fad-97c5-2e532dbbe956"
+# The "Zip State Federal District" view. Lives in the Insights workbook
+# APItemplate_ZipStateAndFedDistrict2_RM (contentUrl slug APItemplate_ZipStateAnd2).
+# The original APItemplate_ZipStateAndFedDistrict view was emptied/retired on the
+# Insights side; this is its replacement with the same column schema.
+VIEW_ID = "1e0b44c9-b910-4cb1-81c0-0892cd82ade3"
 VIEW_NAME = "Zip State Federal District"
 
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", ".")
