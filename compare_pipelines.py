@@ -46,7 +46,15 @@ MISMATCHES_CSV = "comparison_mismatches.csv"
 MISMATCHES_XLSX = "comparison_mismatches.xlsx"
 
 # Fields compared, in output order. Each becomes insights_<f> / nb_<f> / <f>_match.
-COMPARE_FIELDS = ["registered_state", "registered_zip", "federal_district"]
+# Both pulls normalize these identically (state/district/country upper-stripped,
+# zip to 5 digits, us_citizen to TRUE/FALSE), so comparison is a direct equality.
+COMPARE_FIELDS = [
+    "registered_state",
+    "registered_zip",
+    "federal_district",
+    "membership_country",
+    "us_citizen",
+]
 
 # ZIP-like columns typed as text in the XLSX so Excel keeps leading zeros.
 ZIP_COLUMNS = ["insights_registered_zip", "nb_registered_zip"]
@@ -63,11 +71,41 @@ def _out(filename: str) -> str:
 TABLEAU_NOT_A_VALUE = {"", "*"}
 
 
+def _fix_mojibake(s: str) -> str:
+    """Repair UTF-8-decoded-as-Latin-1 mojibake, best effort.
+
+    The Insights export sometimes double-encodes accented text, so e.g.
+    "CÔTE" arrives as "CÃ´TE". Round-tripping latin-1 -> utf-8 restores the
+    original. If the string wasn't mojibake'd, the round-trip fails and we keep
+    the original unchanged.
+    """
+    if not any(ord(c) > 127 for c in s):
+        return s
+    try:
+        return s.encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return s
+
+
+def _fold_accents(s: str) -> str:
+    """Drop accents/diacritics so e.g. 'CÔTE' and 'COTE' compare equal."""
+    import unicodedata
+
+    return "".join(
+        c for c in unicodedata.normalize("NFKD", s) if not unicodedata.combining(c)
+    )
+
+
 def _norm(value: object) -> str:
-    """Upper/stripped string for comparison; Tableau '*' becomes '' (no value)."""
+    """Canonical form for text comparison.
+
+    Repairs mojibake, folds accents, and upper/strips, so values that differ
+    only by encoding or diacritics (common in country names like Côte d'Ivoire,
+    Réunion, Åland Islands) compare equal. Tableau '*' and blanks become ''.
+    """
     if value is None:
         return ""
-    s = str(value).strip().upper()
+    s = _fold_accents(_fix_mojibake(str(value))).strip().upper()
     return "" if s in TABLEAU_NOT_A_VALUE else s
 
 
@@ -103,8 +141,10 @@ def _read_side(path: str, prefix: str) -> pd.DataFrame:
 def _field_flag(field: str, ins: str, nb: str) -> str:
     """MATCH / MISMATCH / '' (not comparable) for one field.
 
-    ZIP is compared on its first five digits; state and district on an
-    upper/stripped basis. A blank on either side means "not comparable".
+    ZIP is compared on its first five digits; all other fields (state, federal
+    district, membership_country, us_citizen) on an upper/stripped basis — both
+    pulls already normalize them to the same canonical form. A blank (or
+    Tableau "*") on either side means "not comparable".
     """
     if field == "registered_zip":
         a, b = _norm_zip(ins), _norm_zip(nb)

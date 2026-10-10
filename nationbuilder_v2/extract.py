@@ -1,13 +1,15 @@
 """Extract the fields the Insights-vs-NationBuilder comparison needs.
 
 Projects each NationBuilder V2 signup record down to:
-    signup_id, registered_state, registered_zip, federal_district
+    signup_id, registered_state, registered_zip, federal_district,
+    membership_country, us_citizen
 
 These are the authoritative values the comparison checks against the Insights
-pull. `registered_address` is sideloaded via
-`extra_fields[signups]=registered_address`; `federal_district` is a top-level
-attribute. No inclusion filter is applied here — this project compares every
-signup that also appears in Insights (unlike ZipStateFed, which filters).
+pull. Two things are sideloaded via extra_fields: `registered_address` (for
+state/zip) and `custom_values` (for membership_country + us_citizen, which are
+NationBuilder *custom fields*, not top-level attributes). `federal_district` is
+a top-level attribute. No inclusion filter is applied here — this project
+compares every signup that also appears in Insights.
 """
 
 from __future__ import annotations
@@ -16,16 +18,20 @@ from typing import Any, Generator
 
 from nationbuilder_v2.client import NationBuilderV2Client
 
-# Extra fields that must be requested from V2 to populate the projection. Only
-# the registered address is sideloaded; federal_district is already top-level.
-EXTRA_FIELDS = ["registered_address"]
+# Extra fields requested from V2:
+#   registered_address -> registered_state / registered_zip
+#   custom_values      -> membership_country / us_citizen (both custom fields)
+# federal_district is already a top-level attribute.
+EXTRA_FIELDS = ["registered_address", "custom_values"]
 
-# Column order for the projected output.
+# Column order for the projected output (matches pull_insights COLUMNS).
 COLUMNS = [
     "signup_id",
     "registered_state",
     "registered_zip",
     "federal_district",
+    "membership_country",
+    "us_citizen",
 ]
 
 
@@ -37,20 +43,45 @@ def _norm_zip(value: object) -> str:
     return digits[:5] if digits else ""
 
 
+def _norm_citizen(value: object) -> str:
+    """Canonical TRUE / FALSE / '' for us_citizen.
+
+    NationBuilder returns this custom field as a Python bool; Insights gives
+    1.0 / 0.0. Collapse both (and common string encodings) to a single form so
+    the two sides compare cleanly.
+    """
+    if value is None:
+        return ""
+    if value is True:
+        return "TRUE"
+    if value is False:
+        return "FALSE"
+    s = str(value).strip().lower()
+    if s in {"1", "1.0", "true", "yes", "t", "y"}:
+        return "TRUE"
+    if s in {"0", "0.0", "false", "no", "f", "n"}:
+        return "FALSE"
+    return ""
+
+
 def project_signup(record: dict[str, Any]) -> dict[str, Any]:
     """Project one V2 signup record to the fields we need.
 
     registered_state / registered_zip come from the sideloaded
-    `registered_address` (which can be null); federal_district is a top-level
-    attribute (e.g. "NY13"). Values are upper/stripped for clean comparison.
+    `registered_address` (can be null); federal_district is top-level;
+    membership_country and us_citizen come from `custom_values`. Strings are
+    upper/stripped and us_citizen is canonicalized for clean comparison.
     """
     attrs = record.get("attributes", {}) or {}
     addr = attrs.get("registered_address") or {}
+    custom = attrs.get("custom_values") or {}
     return {
         "signup_id": record.get("id"),
         "registered_state": (addr.get("state") or "").strip().upper(),
         "registered_zip": _norm_zip(addr.get("zip")),
         "federal_district": (attrs.get("federal_district") or "").strip().upper(),
+        "membership_country": (custom.get("membership_country") or "").strip().upper(),
+        "us_citizen": _norm_citizen(custom.get("us_citizen")),
     }
 
 
