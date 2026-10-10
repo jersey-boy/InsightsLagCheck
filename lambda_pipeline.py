@@ -131,8 +131,13 @@ DEFAULT_EMAIL_MESSAGE = (
     "This report lists every signup_id present in BOTH NationBuilder Insights "
     "and the NationBuilder V2 API whose registered state, ZIP, or federal "
     "district disagree between the two systems — i.e. where Insights has fallen "
-    "out of sync with NationBuilder. Each report is attached as both a CSV and an "
-    "XLSX; the XLSX types the ZIP column as text so Excel keeps leading zeros."
+    "out of sync with NationBuilder.\n\n"
+    "Each report is provided as both a CSV and an XLSX file. This is because of "
+    "ZIP codes with leading zeros (e.g. 01002). The CSV stores the ZIP as text "
+    "so the leading zero is preserved everywhere (text editors, Google Sheets, "
+    "pandas), but Excel will strip it if you open the CSV directly. The XLSX "
+    "version types the ZIP column as text so Excel keeps the leading zero. Use "
+    "the XLSX in Excel; the CSV is the universal form for everything else."
 )
 EMAIL_MESSAGE = os.getenv("EMAIL_MESSAGE", DEFAULT_EMAIL_MESSAGE)
 EMAIL_SUBJECT = "Insights vs NationBuilder comparison report"
