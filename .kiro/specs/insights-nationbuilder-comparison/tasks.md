@@ -58,11 +58,24 @@ with at least one field mismatch. (Counts drift run-to-run as live data changes.
   - [x] 11.5 `aws/` IAM + env templates, `Dockerfile`/`.dockerignore` fallback,
     `.env.example` AWS section, `DEPLOY.md`.
   - [x] 11.6 Verified `run()` locally (S3/SES unset -> local files only).
-  - [ ] 11.7 Create the live AWS resources (bucket, secret, role, function,
-    schedule) per DEPLOY.md — user step, not yet done.
+  - [x] 11.7 Created the live AWS resources (bucket
+    `insightslagcheck-reports-068238656047`, secret `nb/insightslag/prod`,
+    execution + scheduler roles, function `insightslagcheck-comparison`, nightly
+    schedule at 06:00 UTC) in account 068238656047 / eu-west-2. Verified with a
+    live end-to-end invoke that emailed the report.
+
+## Phase 3b — Expanded to 5 fields across 3 Insights workbooks
+
+- [x] 14. Insights source split into three workbooks (MostCommon: state/zip;
+  Custom: membership_country/us_citizen; Electoral: federal_district), pulled and
+  outer-joined on `signup_id`. Comparison extended to all five fields, with
+  mojibake/accent folding so country names match across systems. Deployed +
+  verified live.
+- [x] 15. Retired the legacy V1 `nationbuilder/` package, `pull_zip_state_federal.py`,
+  `sources.py`, `list_reports.py`, the ZIP reference workbook, and the
+  `zip-state-federal-validation` spec. `nb_insights.py` kept (shared by the
+  current Insights pull).
 
 ## Phase 4 — Not yet started
 
 - [ ] 12. GitHub Actions + Serverless Framework v4 deployment (ToDoList #3).
-- [ ] 13. Retire the legacy V1 `nationbuilder/` package and
-  `pull_zip_state_federal.py` once their deployment is migrated.

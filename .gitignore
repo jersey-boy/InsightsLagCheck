@@ -40,9 +40,7 @@ aws/response.json
 .idea/
 
 # Local working notes / chat transcripts (not part of the project source).
-Chat*.docx
-Chat*.md
-Dennis.md
+Chats/
 
 # Recipient list contains real email addresses (PII); the live copy lives in S3.
 recipients.txt

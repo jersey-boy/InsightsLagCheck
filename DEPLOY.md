@@ -38,9 +38,8 @@ Packaging options:
   - NationBuilder **Insights (Tableau)** — token name, token secret, site name,
     site url.
 
-There is **no ZIP reference workbook** for this pipeline (that was the legacy
-`pull_zip_state_federal.py` validator). The comparison only reads the two live
-APIs.
+The comparison reads only the two live APIs — there is no reference workbook or
+other bundled data file to upload.
 
 ---
 

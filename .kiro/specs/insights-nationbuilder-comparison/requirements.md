@@ -8,10 +8,8 @@ NationBuilder itself. The Insights values can lag or drift from NationBuilder â€
 this is the "lag" the project (InsightsLagCheck) is named for.
 
 This feature pulls the same population from **both** systems and compares, field
-by field, every `signup_id` that appears in both, reporting where they disagree.
-Unlike the legacy `pull_zip_state_federal.py` validator (which checks ZIP/state
-and district/state *within* Insights), this feature checks Insights **against**
-NationBuilder.
+by field, every `signup_id` that appears in both, reporting where they disagree â€”
+checking Insights **against** the authoritative NationBuilder data.
 
 The NationBuilder side uses the **V2 API over OAuth 2.0**. (An earlier version
 used the V1 API with a two-stage bulk-index-then-per-record-detail pull; V2
@@ -105,6 +103,4 @@ discrepancies a single-field check would miss.
 
 ## Out of scope (for now)
 
-- AWS Lambda / S3 / email for this comparison flow (ToDoList item #2).
 - GitHub Actions + Serverless Framework deployment (ToDoList item #3).
-- Retiring the legacy V1 `nationbuilder/` package and `pull_zip_state_federal.py`.

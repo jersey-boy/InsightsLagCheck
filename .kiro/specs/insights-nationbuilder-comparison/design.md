@@ -29,8 +29,8 @@ nationbuilder_v2/       V2 OAuth client + signup extractor
 nb_insights.py          Shared Tableau connection (also used by legacy validator)
 ```
 
-The legacy `nationbuilder/` (V1) package and `pull_zip_state_federal.py` remain
-in the repo but are **not** part of this pipeline.
+(The legacy V1 `nationbuilder/` package and `pull_zip_state_federal.py` validator
+that this pipeline replaced have been removed from the repo.)
 
 ## Components
 
