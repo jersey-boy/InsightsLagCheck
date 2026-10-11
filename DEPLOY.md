@@ -103,7 +103,9 @@ CLI (`npm ci`), and runs `serverless deploy`.
 
 ### Required repository secrets
 
-Settings → Secrets and variables → Actions → **New repository secret**:
+Repo **Settings** → sidebar **Security** group → **Secrets and variables** →
+**Actions** → **New repository secret** (direct link:
+`https://github.com/<owner>/<repo>/settings/secrets/actions`):
 
 | Secret | What it is |
 |--------|------------|
@@ -115,8 +117,8 @@ Settings → Secrets and variables → Actions → **New repository secret**:
 the workflow manually) and it deploys.
 
 > **Where these keys live:** nowhere in the repo. GitHub Actions secrets are
-> stored encrypted in GitHub (Settings → Secrets and variables → Actions) and
-> are only *referenced* by name in the workflow. The app's own runtime
+> stored encrypted in GitHub (Settings → Security → Secrets and variables →
+> Actions) and are only *referenced* by name in the workflow. The app's own runtime
 > credentials are separate: in `.env` for local runs (gitignored) and in the
 > `nb/insightslag/prod` Secrets Manager secret for the Lambda.
 
