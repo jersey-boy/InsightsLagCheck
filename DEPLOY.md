@@ -122,10 +122,14 @@ the workflow manually) and it deploys.
 > credentials are separate: in `.env` for local runs (gitignored) and in the
 > `nb/insightslag/prod` Secrets Manager secret for the Lambda.
 
-> **TODO — rotate the Serverless access key.** The `SERVERLESS_ACCESS_KEY` used
-> during the initial local deploy was exposed in plaintext and should be
-> regenerated in the Serverless dashboard, with the new value stored only as the
-> GitHub secret above. Deferred for now; do this before relying on CI deploys.
+> **TODO — clean up the CI credentials (shortcut taken for speed).** The three
+> repo secrets currently reuse *existing* keys rather than dedicated ones:
+> `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` are the existing admin user's keys,
+> and `SERVERLESS_ACCESS_KEY` is the pre-existing dashboard key (which was also
+> exposed in plaintext during setup). Before relying on CI long-term: create a
+> dedicated least-privilege deploy IAM user, generate fresh AWS + Serverless
+> keys, update the three GitHub secrets, and deactivate/rotate the old keys.
+> Tracked in `ToDoList.txt` (Tech debt / cleanup).
 
 ---
 

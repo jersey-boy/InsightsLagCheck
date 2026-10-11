@@ -1,4 +1,27 @@
 
-1.Convert to NationBuilder API v2 - use ZipStateFed kiro project as model
-2.convert to AWS Lambda with S3 bucket and email notification - use ZipStateFed kiro project as model
-3. Modify deployment to use Github actions and serverless framework v4
+1.Convert to NationBuilder API v2 - use ZipStateFed kiro project as model   [DONE]
+2.convert to AWS Lambda with S3 bucket and email notification - use ZipStateFed kiro project as model   [DONE]
+3. Modify deployment to use Github actions and serverless framework v4   [DONE as v3; v4 deferred - see cleanup #1]
+
+--- Tech debt / cleanup (come back to these) ---
+
+1. Serverless Framework: deployed on v3 (account/key we had). Upgrade to v4
+   later - needs a licensed v4 access key. (Also clears the cosmetic python3.12
+   runtime schema warning v3 prints.)
+
+2. GitHub Actions deploy credentials - SHORTCUT TAKEN FOR SPEED:
+   - Reused the EXISTING keys instead of making dedicated ones:
+       * AWS: used existing admin keys (awsadmin01) rather than a dedicated,
+         least-privilege deploy IAM user.
+       * SERVERLESS_ACCESS_KEY: reused the existing dashboard key (the one that
+         was pasted in chat earlier, i.e. exposed) rather than a fresh key.
+   - Clean this up: create a dedicated least-privilege deploy IAM user, generate
+     fresh AWS + Serverless keys, update the 3 GitHub repo secrets, then
+     deactivate/rotate the old keys.
+
+3. GitHub Actions AWS auth: using static IAM access keys stored as GitHub
+   secrets. Consider switching to GitHub OIDC (a GitHub->AWS trust role, no
+   long-lived keys in GitHub). See DEPLOY.md "Future upgrades".
+
+4. Packaging: deploy ships a prebuilt build_lambda_zip.py artifact. Could switch
+   to the serverless-python-requirements plugin (needs Docker) if preferred.
