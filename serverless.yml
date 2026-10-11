@@ -1,0 +1,96 @@
+# Serverless Framework v3 — Insights vs NationBuilder comparison Lambda.
+#
+# Infrastructure-as-code for the comparison function: Serverless/CloudFormation
+# owns the Lambda, its IAM execution role, the log group, and the nightly
+# schedule. The S3 reports bucket and the Secrets Manager secret are NOT managed
+# here — they already exist and hold live state (report history + the rotating
+# V2 refresh token), so they are only *referenced* by name.
+#
+# Packaging: we deploy a PRE-BUILT artifact produced by build_lambda_zip.py
+# (bundles tableau-api-lib + the non-pandas deps as Linux wheels; pandas/numpy
+# come from the AWS-managed pandas layer). Run `python build_lambda_zip.py`
+# before `serverless deploy` (the GitHub Actions workflow does this for you).
+#
+# NOTE (future upgrades):
+#  - Serverless Framework v4: this config targets v3. v4 needs a licensed
+#    SERVERLESS_ACCESS_KEY for the CLI and has some syntax changes.
+#  - Packaging: build_lambda_zip.py could be replaced by the
+#    serverless-python-requirements plugin (needs Docker for the Linux wheels).
+
+service: insightslagcheck
+
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.12
+  region: ${opt:region, "eu-west-2"}
+  stage: ${opt:stage, "prod"}
+  # Match the hand-tuned sizing: two full ~189k-row pulls are held in memory,
+  # and the parallel V2 pull plus the Insights pull run well inside 900 s.
+  memorySize: 3008
+  timeout: 900
+  environment:
+    OUTPUT_DIR: /tmp
+    S3_BUCKET: ${self:custom.bucket}
+    S3_PREFIX: insights-lag-reports/
+    S3_REGION: ${self:provider.region}
+    SES_SENDER: ${self:custom.sesSender}
+    SES_REGION: ${self:provider.region}
+    RECIPIENTS_S3_URI: s3://${self:custom.bucket}/config/recipients.txt
+    NATIONBUILDER_SECRET_ID: ${self:custom.secretId}
+    NATIONBUILDER_SECRET_REGION: ${self:provider.region}
+    NB_INSIGHTS_SECRET_ID: ${self:custom.secretId}
+    NB_INSIGHTS_SECRET_REGION: ${self:provider.region}
+  iam:
+    role:
+      statements:
+        - Sid: ReadWriteComparisonSecret
+          Effect: Allow
+          Action:
+            - secretsmanager:GetSecretValue
+            - secretsmanager:PutSecretValue
+          Resource: arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:${self:custom.secretId}-*
+        - Sid: S3ReadWrite
+          Effect: Allow
+          Action:
+            - s3:GetObject
+            - s3:PutObject
+          Resource: arn:aws:s3:::${self:custom.bucket}/*
+        - Sid: SendEmail
+          Effect: Allow
+          Action:
+            - ses:SendEmail
+            - ses:SendRawEmail
+          Resource: "*"
+          Condition:
+            StringEquals:
+              ses:FromAddress: ${self:custom.sesSender}
+
+custom:
+  # Existing resources (NOT created by this stack) — referenced by name.
+  bucket: insightslagcheck-reports-068238656047
+  secretId: nb/insightslag/prod
+  sesSender: insights-reports@lategothikdata.com
+  # AWS-managed pandas layer (eu-west-2 / py3.12 / x86_64). pandas + numpy come
+  # from here; see build_lambda_zip.py, which prunes them from the artifact.
+  pandasLayer: arn:aws:lambda:eu-west-2:336392948345:layer:AWSSDKPandas-Python312:31
+
+package:
+  # Deploy the pre-built zip from build_lambda_zip.py as-is; disable Serverless's
+  # own packaging so it ships exactly our artifact.
+  artifact: lambda_deploy.zip
+
+functions:
+  comparison:
+    name: insightslagcheck-comparison
+    handler: lambda_pipeline.handler
+    description: Insights vs NationBuilder comparison; emails the mismatch report.
+    layers:
+      - ${self:custom.pandasLayer}
+    events:
+      # Nightly at 06:00 UTC (EventBridge). Serverless creates the schedule rule
+      # + invoke permission as part of the stack.
+      - schedule:
+          rate: cron(0 6 * * ? *)
+          enabled: true

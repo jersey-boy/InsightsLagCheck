@@ -107,16 +107,22 @@ instead of failing silently.
   (`nb/insightslag/prod`) holding both the `NATIONBUILDER_*` (V2 OAuth) and
   `NB_INSIGHTS_*` (Tableau) keys. The function rotates the V2 refresh token back
   into that secret after each run.
-- **Build** the deployment zip with `python build_lambda_zip.py` (bundles the
-  non-pandas deps — including `tableau-api-lib` — as Linux wheels; pandas/numpy
-  come from the AWS-managed pandas layer).
+- **Deployment is infrastructure-as-code**: `serverless.yml` (Serverless
+  Framework v3) defines the function, IAM role, log group, and schedule, and a
+  **GitHub Actions** workflow (`.github/workflows/deploy.yml`) deploys on every
+  push to `main`. CloudFormation owns those resources; the S3 bucket and the
+  Secrets Manager secret are external (they hold live state) and are referenced,
+  not created.
+- **Build**: the deploy ships a prebuilt artifact from `build_lambda_zip.py`
+  (bundles the non-pandas deps — including `tableau-api-lib` — as Linux wheels;
+  pandas/numpy come from the AWS-managed pandas layer).
 - **Sizing**: 3008 MB memory / 900 s timeout (two full ~189k-row pulls are held
   in memory at once).
-- **Schedule**: an EventBridge schedule (`insightslagcheck-nightly`) runs it
-  daily at 06:00 UTC.
+- **Schedule**: a nightly EventBridge rule runs it daily at 06:00 UTC.
 
-See **[`DEPLOY.md`](DEPLOY.md)** for the full step-by-step (bucket, secret, IAM,
-layer ARN, scheduling); a container-image path is included there as a fallback.
+See **[`DEPLOY.md`](DEPLOY.md)** for the full step-by-step (prerequisites, the
+required GitHub secrets, manual deploy, troubleshooting, and future upgrades);
+a container-image path is included there as an alternative.
 
 ## Spec
 
