@@ -114,6 +114,17 @@ Settings → Secrets and variables → Actions → **New repository secret**:
 `AWS_REGION` is set to `eu-west-2` in the workflow. Push to `main` (or trigger
 the workflow manually) and it deploys.
 
+> **Where these keys live:** nowhere in the repo. GitHub Actions secrets are
+> stored encrypted in GitHub (Settings → Secrets and variables → Actions) and
+> are only *referenced* by name in the workflow. The app's own runtime
+> credentials are separate: in `.env` for local runs (gitignored) and in the
+> `nb/insightslag/prod` Secrets Manager secret for the Lambda.
+
+> **TODO — rotate the Serverless access key.** The `SERVERLESS_ACCESS_KEY` used
+> during the initial local deploy was exposed in plaintext and should be
+> regenerated in the Serverless dashboard, with the new value stored only as the
+> GitHub secret above. Deferred for now; do this before relying on CI deploys.
+
 ---
 
 ## Deploying from a laptop (manual)
