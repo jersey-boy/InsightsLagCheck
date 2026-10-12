@@ -3,11 +3,13 @@ Insights vs NationBuilder comparison — AWS Lambda entry point.
 
 Runs the full comparison pipeline in a single process:
 
-  1. Pull A — the "Zip State Federal District" Insights view (Tableau REST API).
+  1. Pull A — three Insights workbooks (MostCommon / Custom / Electoral) joined
+     on signup_id (Tableau REST API).
   2. Pull B — every signup from the NationBuilder V2 API (OAuth 2.0, parallel),
      rotating the refresh token back into Secrets Manager after the run.
   3. Compare — inner-join on signup_id and flag per-field matches for
-     registered_state / registered_zip / federal_district.
+     registered_state / registered_zip / federal_district / membership_country /
+     us_citizen.
   4. Write the comparison + mismatches reports (CSV + XLSX) to OUTPUT_DIR.
   5. (Optional) upload every report to S3 (date-stamped) and email the mismatches
      report as attachments via SES.
