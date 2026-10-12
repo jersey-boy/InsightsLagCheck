@@ -202,6 +202,18 @@ CloudWatch Logs (`/aws/lambda/insightslagcheck-comparison`).
 
 ## Troubleshooting
 
+**`Invalid character in header content ["Authorization"]` during deploy.** The
+AWS credentials contain a stray character — almost always a trailing newline or
+space pasted into the `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` GitHub
+secret. The AWS SDK can't put a newline in the `Authorization` header, so the
+call is rejected before it leaves the runner. Fix: re-enter the two secrets with
+no trailing whitespace (the 40-char secret key is the usual culprit); if it
+persists, mint a fresh IAM access key. (Note: this project hardcodes the account
+id in `serverless.yml` via `custom.accountId` rather than the `${aws:accountId}`
+variable, specifically so variable resolution does not depend on an STS call —
+otherwise this same bad-credential error surfaces even earlier, during config
+resolution.)
+
 **`AWS::EarlyValidation::ResourceExistenceCheck` fails on deploy / "Validation
 failed with 1 error(s)".** The account has an early-validation guardrail that
 rejects a change set which tries to **create a resource that already exists** —
