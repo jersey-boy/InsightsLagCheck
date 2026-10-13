@@ -46,6 +46,11 @@ aws/response.json
 # Local working notes / chat transcripts (not part of the project source).
 Chats/
 
+# Learning material — local-only tutorials written from this project
+# (Markdown source + any Word/other exports of them).
+tutorial/
+word/
+
 # Recipient list contains real email addresses (PII); the live copy lives in S3.
 recipients.txt
 
